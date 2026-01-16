@@ -8,7 +8,8 @@ import {
   addDoc,
   getDocs,
   deleteDoc,
-  doc
+  doc,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -39,12 +40,37 @@ const category = document.getElementById('category');
 const filterMonth = document.getElementById('filter-month');
 const clearFilterBtn = document.getElementById('clear-filter');
 
+// Novos elementos para contas pendentes
+const pendingForm = document.getElementById('pending-form');
+const pendingText = document.getElementById('pending-text');
+const pendingAmount = document.getElementById('pending-amount');
+const pendingDate = document.getElementById('pending-date');
+const pendingCategory = document.getElementById('pending-category');
+const pendingList = document.getElementById('pending-list');
+
+// Novos elementos para serviços não pagos
+const earnedForm = document.getElementById('earned-form');
+const earnedText = document.getElementById('earned-text');
+const earnedAmount = document.getElementById('earned-amount');
+const earnedDate = document.getElementById('earned-date');
+const earnedClient = document.getElementById('earned-client');
+const earnedList = document.getElementById('earned-list');
+
+// Elementos de alerta
+const pendingTotal = document.getElementById('pending-total');
+const pendingCount = document.getElementById('pending-count');
+const earnedTotal = document.getElementById('earned-total');
+const earnedCount = document.getElementById('earned-count');
+const generatePdfBtn = document.getElementById('generate-pdf-btn');
+
 let myChart = null;
 
 // ============================================================
 // 2. ESTADO DA APLICAÇÃO
 // ============================================================
 let transactions = [];
+let pendingAccounts = [];
+let earnedServices = [];
 
 // ============================================================
 // 3. FUNÇÕES UTILITÁRIAS
@@ -111,6 +137,142 @@ window.removeTransaction = async function(id) {
   loadTransactions();
 };
 
+// ➕ ADICIONAR CONTA PENDENTE
+async function addPendingAccount(e) {
+  e.preventDefault();
+
+  if (!pendingText.value || !pendingAmount.value || !pendingDate.value) {
+    alert('Preencha todos os campos');
+    return;
+  }
+
+  await addDoc(collection(db, "pendingAccounts"), {
+    text: pendingText.value,
+    amount: parseFloat(pendingAmount.value),
+    date: pendingDate.value,
+    category: pendingCategory.value,
+    status: 'pending',
+    createdAt: new Date()
+  });
+
+  pendingForm.reset();
+  loadPendingAccounts();
+}
+
+// 📥 CARREGAR CONTAS PENDENTES
+async function loadPendingAccounts() {
+  pendingAccounts = [];
+  const snapshot = await getDocs(collection(db, "pendingAccounts"));
+
+  snapshot.forEach(docSnap => {
+    pendingAccounts.push({
+      id: docSnap.id,
+      ...docSnap.data()
+    });
+  });
+
+  init();
+}
+
+// ❌ REMOVER CONTA PENDENTE
+window.removePendingAccount = async function(id) {
+  await deleteDoc(doc(db, "pendingAccounts", id));
+  loadPendingAccounts();
+};
+
+// ✅ MARCAR COMO PAGO
+window.markAsPaid = async function(id) {
+  // Encontra a conta pendente
+  const account = pendingAccounts.find(p => p.id === id);
+  
+  if (account) {
+    // Cria uma nova transação de saída
+    await addDoc(collection(db, "transactions"), {
+      text: account.text,
+      amount: -Math.abs(account.amount),
+      date: account.date,
+      category: account.category,
+      type: 'expense',
+      createdAt: new Date()
+    });
+    
+    // Deleta a conta pendente
+    await deleteDoc(doc(db, "pendingAccounts", id));
+    
+    // Recarrega ambas as listas
+    loadPendingAccounts();
+    loadTransactions();
+  }
+};
+
+// ➕ ADICIONAR SERVIÇO REALIZADO
+async function addEarnedService(e) {
+  e.preventDefault();
+
+  if (!earnedText.value || !earnedAmount.value || !earnedDate.value || !earnedClient.value) {
+    alert('Preencha todos os campos');
+    return;
+  }
+
+  await addDoc(collection(db, "earnedServices"), {
+    text: earnedText.value,
+    amount: parseFloat(earnedAmount.value),
+    date: earnedDate.value,
+    client: earnedClient.value,
+    status: 'pending',
+    createdAt: new Date()
+  });
+
+  earnedForm.reset();
+  loadEarnedServices();
+}
+
+// 📥 CARREGAR SERVIÇOS REALIZADOS
+async function loadEarnedServices() {
+  earnedServices = [];
+  const snapshot = await getDocs(collection(db, "earnedServices"));
+
+  snapshot.forEach(docSnap => {
+    earnedServices.push({
+      id: docSnap.id,
+      ...docSnap.data()
+    });
+  });
+
+  init();
+}
+
+// ❌ REMOVER SERVIÇO
+window.removeEarnedService = async function(id) {
+  await deleteDoc(doc(db, "earnedServices", id));
+  loadEarnedServices();
+};
+
+// ✅ MARCAR SERVIÇO COMO RECEBIDO
+window.markAsReceived = async function(id) {
+  // Encontra o serviço
+  const service = earnedServices.find(e => e.id === id);
+  
+  if (service) {
+    // Cria uma nova transação de entrada
+    await addDoc(collection(db, "transactions"), {
+      text: service.text,
+      amount: service.amount,
+      date: service.date,
+      category: service.client,
+      type: 'income',
+      createdAt: new Date()
+    });
+    
+    // Deleta o serviço
+    await deleteDoc(doc(db, "earnedServices", id));
+    
+    // Recarrega ambas as listas
+    loadEarnedServices();
+    loadTransactions();
+  }
+};
+
 // ============================================================
 // 5. FILTROS E CÁLCULOS
 // ============================================================
@@ -129,6 +291,20 @@ function updateValues() {
   balance.innerText = formatCurrency(total);
   moneyPlus.innerText = formatCurrency(income);
   moneyMinus.innerText = formatCurrency(expense);
+}
+
+function updateAlerts() {
+  // Contas pendentes
+  const pendingPaid = pendingAccounts.filter(p => p.status === 'pending');
+  const totalPending = pendingPaid.reduce((sum, p) => sum + p.amount, 0);
+  pendingTotal.innerText = formatCurrency(totalPending);
+  pendingCount.innerText = `${pendingPaid.length} conta${pendingPaid.length !== 1 ? 's' : ''} pendente${pendingPaid.length !== 1 ? 's' : ''}`;
+
+  // Serviços não recebidos
+  const earnedNotReceived = earnedServices.filter(e => e.status === 'pending');
+  const totalEarned = earnedNotReceived.reduce((sum, e) => sum + e.amount, 0);
+  earnedTotal.innerText = formatCurrency(totalEarned);
+  earnedCount.innerText = `${earnedNotReceived.length} serviço${earnedNotReceived.length !== 1 ? 's' : ''} aguardando`;
 }
 
 // ============================================================
@@ -176,6 +352,60 @@ function updateChart() {
 }
 
 // ============================================================
+// 6b. UI PARA CONTAS PENDENTES
+// ============================================================
+function addPendingAccountDOM(account) {
+  const tr = document.createElement('tr');
+  const today = new Date().toISOString().split('T')[0];
+  const isOverdue = account.date < today;
+
+  tr.innerHTML = `
+    <td style="color: ${isOverdue ? 'var(--red)' : 'var(--text-color)'}">
+      ${formatDate(account.date)}
+    </td>
+    <td>${account.text}</td>
+    <td>${account.category}</td>
+    <td style="color: var(--red); font-weight: bold;">
+      ${formatCurrency(account.amount)}
+    </td>
+    <td>
+      <button class="action-btn" onclick="markAsPaid('${account.id}')" title="Marcar como pago">✓</button>
+      <button class="delete-btn" onclick="removePendingAccount('${account.id}')">x</button>
+    </td>
+  `;
+
+  pendingList.appendChild(tr);
+}
+
+// ============================================================
+// 6c. UI PARA SERVIÇOS NÃO PAGOS
+// ============================================================
+function addEarnedServiceDOM(service) {
+  const tr = document.createElement('tr');
+  const today = new Date();
+  const serviceDate = new Date(service.date);
+  const daysOpen = Math.floor((today - serviceDate) / (1000 * 60 * 60 * 24));
+
+  tr.innerHTML = `
+    <td>${formatDate(service.date)}</td>
+    <td>${service.text}</td>
+    <td>${service.client}</td>
+    <td style="color: var(--green); font-weight: bold;">
+      ${formatCurrency(service.amount)}
+    </td>
+    <td style="color: ${daysOpen > 30 ? 'var(--red)' : daysOpen > 15 ? 'var(--text-secondary)' : 'var(--green)'}">
+      ${daysOpen} dias
+    </td>
+    <td>
+      ${service.status === 'pending' ? `<button class="action-btn" onclick="markAsReceived('${service.id}')" title="Marcar como recebido">✓</button>` : ''}
+      <button class="delete-btn" onclick="removeEarnedService('${service.id}')">x</button>
+    </td>
+  `;
+
+  earnedList.appendChild(tr);
+}
+
+// ============================================================
 // 7. INIT
 // ============================================================
 function init() {
@@ -184,7 +414,18 @@ function init() {
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .forEach(addTransactionDOM);
 
+  pendingList.innerHTML = '';
+  pendingAccounts
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .forEach(addPendingAccountDOM);
+
+  earnedList.innerHTML = '';
+  earnedServices
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .forEach(addEarnedServiceDOM);
+
   updateValues();
+  updateAlerts();
   updateChart();
 }
 
@@ -192,11 +433,194 @@ function init() {
 // 8. EVENTOS
 // ============================================================
 form.addEventListener('submit', addTransaction);
+pendingForm.addEventListener('submit', addPendingAccount);
+earnedForm.addEventListener('submit', addEarnedService);
 filterMonth.addEventListener('change', init);
 clearFilterBtn.addEventListener('click', () => {
   filterMonth.value = '';
   init();
 });
 
+// ============================================================
+// 9. GERAR RELATÓRIO EM PDF
+// ============================================================
+function generatePDF() {
+  const today = new Date().toLocaleDateString('pt-BR');
+  
+  const values = transactions.map(t => t.amount);
+  const total = values.reduce((a, b) => a + b, 0);
+  const income = values.filter(v => v > 0).reduce((a, b) => a + b, 0);
+  const expense = values.filter(v => v < 0).reduce((a, b) => a + b, 0) * -1;
+
+  // Criar conteúdo HTML para o PDF
+  let htmlContent = `
+    <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+      <h1 style="text-align: center; color: #8257e5; border-bottom: 2px solid #8257e5; padding-bottom: 10px;">
+        📊 RELATÓRIO FINANCEIRO COMPLETO
+      </h1>
+      
+      <p style="text-align: center; color: #666; margin-bottom: 30px;">
+        Gerado em: ${today}
+      </p>
+
+      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+        💰 RESUMO FINANCEIRO
+      </h2>
+      
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+        <tr style="background-color: #f5f5f5;">
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Saldo Total:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: ${total >= 0 ? '#00b37e' : '#f75a68'}; font-weight: bold; font-size: 16px;">
+            ${formatCurrency(total)}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Total de Entradas:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: #00b37e; font-weight: bold;">
+            ${formatCurrency(income)}
+          </td>
+        </tr>
+        <tr style="background-color: #f5f5f5;">
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Total de Saídas:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: #f75a68; font-weight: bold;">
+            ${formatCurrency(expense)}
+          </td>
+        </tr>
+      </table>
+
+      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+        📌 CONTAS A PAGAR (${pendingAccounts.filter(p => p.status === 'pending').length})
+      </h2>
+      
+      ${pendingAccounts.length > 0 ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr style="background-color: #8257e5; color: white;">
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Vencimento</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Descrição</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Categoria</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Valor</th>
+          </tr>
+          ${pendingAccounts.map((p, i) => `
+            <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
+              <td style="padding: 12px; border: 1px solid #ddd;">${formatDate(p.date)}</td>
+              <td style="padding: 12px; border: 1px solid #ddd;">${p.text}</td>
+              <td style="padding: 12px; border: 1px solid #ddd;">${p.category}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #f75a68; font-weight: bold;">
+                ${formatCurrency(p.amount)}
+              </td>
+            </tr>
+          `).join('')}
+        </table>
+      ` : '<p style="color: #999; font-style: italic;">Nenhuma conta pendente 🎉</p>'}
+
+      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+        💰 SERVIÇOS NÃO RECEBIDOS (${earnedServices.filter(e => e.status === 'pending').length})
+      </h2>
+      
+      ${earnedServices.length > 0 ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr style="background-color: #8257e5; color: white;">
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Data</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Serviço</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Cliente</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Valor</th>
+          </tr>
+          ${earnedServices.map((e, i) => `
+            <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
+              <td style="padding: 12px; border: 1px solid #ddd;">${formatDate(e.date)}</td>
+              <td style="padding: 12px; border: 1px solid #ddd;">${e.text}</td>
+              <td style="padding: 12px; border: 1px solid #ddd;">${e.client}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #00b37e; font-weight: bold;">
+                ${formatCurrency(e.amount)}
+              </td>
+            </tr>
+          `).join('')}
+        </table>
+      ` : '<p style="color: #999; font-style: italic;">Nenhum serviço pendente 🎉</p>'}
+
+      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+        📋 HISTÓRICO DE TRANSAÇÕES (${transactions.length})
+      </h2>
+      
+      ${transactions.length > 0 ? `
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="background-color: #8257e5; color: white;">
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Data</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Descrição</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Categoria</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Valor</th>
+          </tr>
+          ${transactions.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 30).map((t, i) => `
+            <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
+              <td style="padding: 12px; border: 1px solid #ddd;">${formatDate(t.date)}</td>
+              <td style="padding: 12px; border: 1px solid #ddd;">${t.text}</td>
+              <td style="padding: 12px; border: 1px solid #ddd;">${t.category}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: ${t.amount < 0 ? '#f75a68' : '#00b37e'}; font-weight: bold;">
+                ${t.amount < 0 ? '-' : '+'} ${formatCurrency(Math.abs(t.amount))}
+              </td>
+            </tr>
+          `).join('')}
+        </table>
+        <p style="color: #999; font-size: 12px; margin-top: 10px;">
+          * Mostrando as últimas 30 transações
+        </p>
+      ` : '<p style="color: #999; font-style: italic;">Nenhuma transação registrada</p>'}
+
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #eee; text-align: center; color: #999; font-size: 12px;">
+        <p>Relatório gerado automaticamente pelo Sistema Financeiro Corp</p>
+      </div>
+    </div>
+  `;
+
+  // Configuração do html2pdf
+  const element = document.createElement('div');
+  element.innerHTML = htmlContent;
+  
+  const opt = {
+    margin: 10,
+    filename: `relatorio-financeiro-${today.replace(/\//g, '-')}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+  };
+
+  html2pdf().set(opt).from(element).save();
+}
+
+if (generatePdfBtn) {
+  generatePdfBtn.addEventListener('click', generatePDF);
+}
+
+// ============================================================
+// 10. CARROSSEL - DETECTAR FOCO
+// ============================================================
+const carouselContainer = document.querySelector('.carousel-container');
+const carouselSections = document.querySelectorAll('.carousel-section');
+
+if (carouselContainer) {
+  // Atualizar opacidade ao fazer scroll
+  carouselContainer.addEventListener('scroll', () => {
+    carouselSections.forEach(section => {
+      const rect = section.getBoundingClientRect();
+      const containerRect = carouselContainer.getBoundingClientRect();
+      
+      // Verificar se a seção está visível
+      const distanceFromCenter = Math.abs(
+        rect.left + rect.width / 2 - (containerRect.left + containerRect.width / 2)
+      );
+      
+      const maxDistance = containerRect.width / 2;
+      const opacity = Math.max(0.6, 1 - distanceFromCenter / maxDistance * 0.4);
+      
+      section.style.opacity = opacity;
+    });
+  });
+  
+  // Primeiro scroll para atualizar opacidades
+  carouselContainer.dispatchEvent(new Event('scroll'));
+}
+
 // 🚀 START
 loadTransactions();
+loadPendingAccounts();
+loadEarnedServices();
