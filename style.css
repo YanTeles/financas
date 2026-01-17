@@ -434,6 +434,27 @@ td.transaction-amount {
     opacity: 1;
 }
 
+.load-more-btn {
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.load-more-btn:hover {
+    background-color: var(--primary-hover);
+    transform: scale(1.05);
+}
+
+.load-more-btn:active {
+    transform: scale(0.98);
+}
+
 .action-btn {
     background-color: transparent;
     border: 0;

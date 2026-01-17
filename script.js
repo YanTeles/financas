@@ -74,6 +74,14 @@ let transactions = [];
 let pendingAccounts = [];
 let earnedServices = [];
 
+// Paginação
+let transactionsPerPage = 10;
+let transactionsPage = 0;
+let pendingPerPage = 10;
+let pendingPage = 0;
+let earnedPerPage = 10;
+let earnedPage = 0;
+
 // ============================================================
 // 3. FUNÇÕES UTILITÁRIAS
 // ============================================================
@@ -579,10 +587,30 @@ function addPendingAccountDOM(account) {
   const tr = document.createElement('tr');
   const today = new Date().toISOString().split('T')[0];
   const isOverdue = account.date < today;
+  
+  // Calcular dias até o vencimento (negativo = atrasado)
+  const accountDate = new Date(account.date);
+  const todayDate = new Date(today);
+  const daysUntilDue = Math.floor((accountDate - todayDate) / (1000 * 60 * 60 * 24));
+  
+  // Definir cor e ícone baseado no status
+  let dateStyle = 'color: var(--text-color)';
+  let dateDisplay = formatDate(account.date);
+  
+  if (daysUntilDue < -5) {
+    dateStyle = 'color: var(--red); font-weight: bold;';
+    dateDisplay = `⚠️ ${formatDate(account.date)} (${Math.abs(daysUntilDue)} dias atrasado)`;
+  } else if (daysUntilDue < 0) {
+    dateStyle = 'color: var(--red);';
+    dateDisplay = `${formatDate(account.date)} (${Math.abs(daysUntilDue)} dias atrasado)`;
+  } else if (daysUntilDue <= 5) {
+    dateStyle = 'color: #ff9500; font-weight: bold;';
+    dateDisplay = `⚠️ ${formatDate(account.date)} (vence em ${daysUntilDue} dias)`;
+  }
 
   tr.innerHTML = `
-    <td style="color: ${isOverdue ? 'var(--red)' : 'var(--text-color)'}">
-      ${formatDate(account.date)}
+    <td style="${dateStyle}">
+      ${dateDisplay}
     </td>
     <td>${account.text}</td>
     <td>${account.category}</td>
@@ -591,7 +619,7 @@ function addPendingAccountDOM(account) {
     </td>
     <td>
       <button class="action-btn" onclick="markAsPaid('${account.id}')" title="Marcar como pago">✓</button>
-      <button class="delete-btn" onclick="removePendingAccount('${account.id}')">x</button>
+      <button class="delete-btn" onclick="removePendingAccount('${account.id}')">🗑️</button>
     </td>
   `;
 
@@ -607,6 +635,24 @@ function addEarnedServiceDOM(service) {
   const serviceDate = new Date(service.date);
   const daysOpen = Math.floor((today - serviceDate) / (1000 * 60 * 60 * 24));
 
+  // Definir cor e ícone baseado no número de dias
+  let daysStyle = '';
+  let daysDisplay = `${daysOpen} dias`;
+  
+  if (daysOpen > 30) {
+    daysStyle = 'color: var(--red); font-weight: bold; background-color: rgba(247, 90, 104, 0.15); padding: 5px 10px; border-radius: 4px;';
+    daysDisplay = `⚠️ ${daysOpen} dias (CRÍTICO)`;
+  } else if (daysOpen > 15) {
+    daysStyle = 'color: #ff9500; font-weight: bold; background-color: rgba(255, 149, 0, 0.15); padding: 5px 10px; border-radius: 4px;';
+    daysDisplay = `⚠️ ${daysOpen} dias`;
+  } else if (daysOpen > 5) {
+    daysStyle = 'color: #ff9500;';
+    daysDisplay = `${daysOpen} dias`;
+  } else {
+    daysStyle = 'color: var(--green);';
+    daysDisplay = `${daysOpen} dias`;
+  }
+
   tr.innerHTML = `
     <td>${formatDate(service.date)}</td>
     <td>${service.text}</td>
@@ -614,12 +660,12 @@ function addEarnedServiceDOM(service) {
     <td style="color: var(--green); font-weight: bold;">
       ${formatCurrency(service.amount)}
     </td>
-    <td style="color: ${daysOpen > 30 ? 'var(--red)' : daysOpen > 15 ? 'var(--text-secondary)' : 'var(--green)'}">
-      ${daysOpen} dias
+    <td style="${daysStyle}">
+      ${daysDisplay}
     </td>
     <td>
       ${service.status === 'pending' ? `<button class="action-btn" onclick="markAsReceived('${service.id}')" title="Marcar como recebido">✓</button>` : ''}
-      <button class="delete-btn" onclick="removeEarnedService('${service.id}')">x</button>
+      <button class="delete-btn" onclick="removeEarnedService('${service.id}')">🗑️</button>
     </td>
   `;
 
@@ -627,23 +673,104 @@ function addEarnedServiceDOM(service) {
 }
 
 // ============================================================
-// 7. INIT
+// 7. RENDERIZAÇÃO COM PAGINAÇÃO
 // ============================================================
-function init() {
+function renderTransactions() {
+  const filteredTransactions = getFilteredTransactions()
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
   list.innerHTML = '';
-  getFilteredTransactions()
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .forEach(addTransactionDOM);
+  const start = transactionsPage * transactionsPerPage;
+  const end = start + transactionsPerPage;
+  const paginatedTransactions = filteredTransactions.slice(0, end);
+
+  paginatedTransactions.forEach(addTransactionDOM);
+
+  // Adicionar botão "Carregar mais" se houver mais itens
+  if (filteredTransactions.length > end) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="5" style="text-align: center; padding: 20px;">
+        <button class="load-more-btn" onclick="loadMoreTransactions()">Carregar Mais</button>
+      </td>
+    `;
+    list.appendChild(tr);
+  }
+}
+
+function loadMoreTransactions() {
+  transactionsPage++;
+  renderTransactions();
+}
+
+function renderPendingAccounts() {
+  const sortedPending = pendingAccounts
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   pendingList.innerHTML = '';
-  pendingAccounts
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .forEach(addPendingAccountDOM);
+  const start = pendingPage * pendingPerPage;
+  const end = start + pendingPerPage;
+  const paginatedPending = sortedPending.slice(0, end);
+
+  paginatedPending.forEach(addPendingAccountDOM);
+
+  // Adicionar botão "Carregar mais" se houver mais itens
+  if (sortedPending.length > end) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="5" style="text-align: center; padding: 20px;">
+        <button class="load-more-btn" onclick="loadMorePending()">Carregar Mais</button>
+      </td>
+    `;
+    pendingList.appendChild(tr);
+  }
+}
+
+function loadMorePending() {
+  pendingPage++;
+  renderPendingAccounts();
+}
+
+function renderEarnedServices() {
+  const sortedEarned = earnedServices
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   earnedList.innerHTML = '';
-  earnedServices
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .forEach(addEarnedServiceDOM);
+  const start = earnedPage * earnedPerPage;
+  const end = start + earnedPerPage;
+  const paginatedEarned = sortedEarned.slice(0, end);
+
+  paginatedEarned.forEach(addEarnedServiceDOM);
+
+  // Adicionar botão "Carregar mais" se houver mais itens
+  if (sortedEarned.length > end) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="6" style="text-align: center; padding: 20px;">
+        <button class="load-more-btn" onclick="loadMoreEarned()">Carregar Mais</button>
+      </td>
+    `;
+    earnedList.appendChild(tr);
+  }
+}
+
+function loadMoreEarned() {
+  earnedPage++;
+  renderEarnedServices();
+}
+
+// ============================================================
+// 7b. INIT
+// ============================================================
+function init() {
+  // Reset paginação ao atualizar
+  transactionsPage = 0;
+  pendingPage = 0;
+  earnedPage = 0;
+
+  renderTransactions();
+  renderPendingAccounts();
+  renderEarnedServices();
 
   updateValues();
   updateAlerts();
@@ -668,31 +795,61 @@ clearFilterBtn.addEventListener('click', () => {
 // 9. GERAR RELATÓRIO EM PDF
 // ============================================================
 function generatePDF() {
-  const today = new Date().toLocaleDateString('pt-BR');
+  const today = new Date();
+  const todayFormatted = today.toLocaleDateString('pt-BR');
+  const currentMonth = today.toISOString().slice(0, 7);
   
   const values = transactions.map(t => t.amount);
   const total = values.reduce((a, b) => a + b, 0);
   const income = values.filter(v => v > 0).reduce((a, b) => a + b, 0);
   const expense = values.filter(v => v < 0).reduce((a, b) => a + b, 0) * -1;
+  
+  // Calcular dados do mês
+  const monthTransactions = transactions.filter(t => t.date.startsWith(currentMonth));
+  const monthValues = monthTransactions.map(t => t.amount);
+  const monthTotal = monthValues.reduce((a, b) => a + b, 0);
+  const monthIncome = monthValues.filter(v => v > 0).reduce((a, b) => a + b, 0);
+  const monthExpense = monthValues.filter(v => v < 0).reduce((a, b) => a + b, 0) * -1;
+  
+  // Calcular dados pendentes
+  const pendingPaid = pendingAccounts.filter(p => p.status === 'pending');
+  const totalPending = pendingPaid.reduce((sum, p) => sum + p.amount, 0);
+  const earnedNotReceived = earnedServices.filter(e => e.status === 'pending');
+  const totalEarned = earnedNotReceived.reduce((sum, e) => sum + e.amount, 0);
+
+  // Capturar gráficos como imagens
+  let balanceChartImg = '';
+  let incomeChartImg = '';
+  
+  const balanceChartCanvas = document.getElementById('balanceChart');
+  const incomeChartCanvas = document.getElementById('incomeChart');
+  
+  if (balanceChartCanvas && balanceChartCanvas.parentElement.offsetHeight > 0) {
+    balanceChartImg = balanceChartCanvas.toDataURL('image/png');
+  }
+  
+  if (incomeChartCanvas && incomeChartCanvas.parentElement.offsetHeight > 0) {
+    incomeChartImg = incomeChartCanvas.toDataURL('image/png');
+  }
 
   // Criar conteúdo HTML para o PDF
   let htmlContent = `
     <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
-      <h1 style="text-align: center; color: #8257e5; border-bottom: 2px solid #8257e5; padding-bottom: 10px;">
+      <h1 style="text-align: center; color: #8257e5; border-bottom: 3px solid #8257e5; padding-bottom: 15px; margin-bottom: 5px;">
         📊 RELATÓRIO FINANCEIRO COMPLETO
       </h1>
       
-      <p style="text-align: center; color: #666; margin-bottom: 30px;">
-        Gerado em: ${today}
+      <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 12px;">
+        Gerado em: ${todayFormatted}
       </p>
 
-      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-        💰 RESUMO FINANCEIRO
+      <h2 style="color: #8257e5; margin-top: 20px; border-bottom: 2px solid #8257e5; padding-bottom: 10px; font-size: 16px;">
+        💰 RESUMO GERAL
       </h2>
       
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
         <tr style="background-color: #f5f5f5;">
-          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Saldo Total:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold; width: 50%;">Saldo Total Geral:</td>
           <td style="padding: 12px; border: 1px solid #ddd; color: ${total >= 0 ? '#00b37e' : '#f75a68'}; font-weight: bold; font-size: 16px;">
             ${formatCurrency(total)}
           </td>
@@ -711,24 +868,86 @@ function generatePDF() {
         </tr>
       </table>
 
-      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-        📌 CONTAS A PAGAR (${pendingAccounts.filter(p => p.status === 'pending').length})
+      <h2 style="color: #8257e5; margin-top: 20px; border-bottom: 2px solid #8257e5; padding-bottom: 10px; font-size: 16px;">
+        📅 RESUMO DO MÊS (${today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })})
       </h2>
       
-      ${pendingAccounts.length > 0 ? `
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+        <tr style="background-color: #f5f5f5;">
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold; width: 50%;">Saldo do Mês:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: ${monthTotal >= 0 ? '#00b37e' : '#f75a68'}; font-weight: bold;">
+            ${formatCurrency(monthTotal)}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Entradas do Mês:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: #00b37e; font-weight: bold;">
+            ${formatCurrency(monthIncome)}
+          </td>
+        </tr>
+        <tr style="background-color: #f5f5f5;">
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Saídas do Mês:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: #f75a68; font-weight: bold;">
+            ${formatCurrency(monthExpense)}
+          </td>
+        </tr>
+      </table>
+
+      <h2 style="color: #8257e5; margin-top: 20px; border-bottom: 2px solid #8257e5; padding-bottom: 10px; font-size: 16px;">
+        📈 GRÁFICOS ANALÍTICOS
+      </h2>
+      
+      ${balanceChartImg ? `
+        <div style="margin-bottom: 30px; text-align: center;">
+          <h3 style="color: #666; margin-bottom: 10px; font-size: 14px;">Evolução do Saldo ao Longo do Mês</h3>
+          <img src="${balanceChartImg}" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px;" />
+        </div>
+      ` : ''}
+      
+      ${incomeChartImg ? `
+        <div style="margin-bottom: 30px; text-align: center;">
+          <h3 style="color: #666; margin-bottom: 10px; font-size: 14px;">Entradas e Saídas Diárias</h3>
+          <img src="${incomeChartImg}" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px;" />
+        </div>
+      ` : ''}
+
+      <h2 style="color: #8257e5; margin-top: 20px; border-bottom: 2px solid #8257e5; padding-bottom: 10px; font-size: 16px;">
+        ⚠️ SITUAÇÃO FINANCEIRA
+      </h2>
+      
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+        <tr style="background-color: #f5f5f5;">
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold; width: 50%;">Contas a Pagar:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: #f75a68; font-weight: bold;">
+            ${formatCurrency(totalPending)} (${pendingPaid.length} conta${pendingPaid.length !== 1 ? 's' : ''})
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Serviços não Recebidos:</td>
+          <td style="padding: 12px; border: 1px solid #ddd; color: #00b37e; font-weight: bold;">
+            ${formatCurrency(totalEarned)} (${earnedNotReceived.length} serviço${earnedNotReceived.length !== 1 ? 's' : ''})
+          </td>
+        </tr>
+      </table>
+
+      <h2 style="color: #8257e5; margin-top: 20px; border-bottom: 2px solid #8257e5; padding-bottom: 10px; font-size: 16px;">
+        📌 CONTAS A PAGAR (${pendingPaid.length})
+      </h2>
+      
+      ${pendingPaid.length > 0 ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
           <tr style="background-color: #8257e5; color: white;">
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Vencimento</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Descrição</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Categoria</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Valor</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Vencimento</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Descrição</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Categoria</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right; font-size: 13px;">Valor</th>
           </tr>
-          ${pendingAccounts.map((p, i) => `
+          ${pendingPaid.map((p, i) => `
             <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
-              <td style="padding: 12px; border: 1px solid #ddd;">${formatDate(p.date)}</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${p.text}</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${p.category}</td>
-              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #f75a68; font-weight: bold;">
+              <td style="padding: 12px; border: 1px solid #ddd; font-size: 12px;">${formatDate(p.date)}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; font-size: 12px;">${p.text}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; font-size: 12px;">${p.category}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #f75a68; font-weight: bold; font-size: 12px;">
                 ${formatCurrency(p.amount)}
               </td>
             </tr>
@@ -736,61 +955,70 @@ function generatePDF() {
         </table>
       ` : '<p style="color: #999; font-style: italic;">Nenhuma conta pendente 🎉</p>'}
 
-      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-        💰 SERVIÇOS NÃO RECEBIDOS (${earnedServices.filter(e => e.status === 'pending').length})
+      <h2 style="color: #8257e5; margin-top: 20px; border-bottom: 2px solid #8257e5; padding-bottom: 10px; font-size: 16px;">
+        💰 SERVIÇOS NÃO RECEBIDOS (${earnedNotReceived.length})
       </h2>
       
-      ${earnedServices.length > 0 ? `
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      ${earnedNotReceived.length > 0 ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
           <tr style="background-color: #8257e5; color: white;">
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Data</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Serviço</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Cliente</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Valor</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Data</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Serviço</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Cliente</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right; font-size: 13px;">Valor</th>
           </tr>
-          ${earnedServices.map((e, i) => `
-            <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
-              <td style="padding: 12px; border: 1px solid #ddd;">${formatDate(e.date)}</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${e.text}</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${e.client}</td>
-              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #00b37e; font-weight: bold;">
-                ${formatCurrency(e.amount)}
-              </td>
-            </tr>
-          `).join('')}
+          ${earnedNotReceived.map((e, i) => {
+            const serviceDate = new Date(e.date);
+            const daysOpen = Math.floor((today - serviceDate) / (1000 * 60 * 60 * 24));
+            return `
+              <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
+                <td style="padding: 12px; border: 1px solid #ddd; font-size: 12px;">${formatDate(e.date)} (${daysOpen} dias)</td>
+                <td style="padding: 12px; border: 1px solid #ddd; font-size: 12px;">${e.text}</td>
+                <td style="padding: 12px; border: 1px solid #ddd; font-size: 12px;">${e.client}</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #00b37e; font-weight: bold; font-size: 12px;">
+                  ${formatCurrency(e.amount)}
+                </td>
+              </tr>
+            `;
+          }).join('')}
         </table>
       ` : '<p style="color: #999; font-style: italic;">Nenhum serviço pendente 🎉</p>'}
 
-      <h2 style="color: #8257e5; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-        📋 HISTÓRICO DE TRANSAÇÕES (${transactions.length})
+      <h2 style="color: #8257e5; margin-top: 20px; border-bottom: 2px solid #8257e5; padding-bottom: 10px; font-size: 16px;">
+        📋 ÚLTIMAS TRANSAÇÕES (${transactions.length} total)
       </h2>
       
       ${transactions.length > 0 ? `
         <table style="width: 100%; border-collapse: collapse;">
           <tr style="background-color: #8257e5; color: white;">
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Data</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Descrição</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Categoria</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Valor</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Data</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Descrição</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Categoria</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-size: 13px;">Tipo</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right; font-size: 13px;">Valor</th>
           </tr>
-          ${transactions.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 30).map((t, i) => `
+          ${transactions.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50).map((t, i) => `
             <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
-              <td style="padding: 12px; border: 1px solid #ddd;">${formatDate(t.date)}</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${t.text}</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${t.category}</td>
-              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: ${t.amount < 0 ? '#f75a68' : '#00b37e'}; font-weight: bold;">
+              <td style="padding: 12px; border: 1px solid #ddd; font-size: 11px;">${formatDate(t.date)}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; font-size: 11px;">${t.text}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; font-size: 11px;">${t.category}</td>
+              <td style="padding: 12px; border: 1px solid #ddd; font-size: 11px; color: ${t.type === 'income' ? '#00b37e' : '#f75a68'};">
+                ${t.type === 'income' ? 'Entrada' : 'Saída'}
+              </td>
+              <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: ${t.amount < 0 ? '#f75a68' : '#00b37e'}; font-weight: bold; font-size: 11px;">
                 ${t.amount < 0 ? '-' : '+'} ${formatCurrency(Math.abs(t.amount))}
               </td>
             </tr>
           `).join('')}
         </table>
-        <p style="color: #999; font-size: 12px; margin-top: 10px;">
-          * Mostrando as últimas 30 transações
+        <p style="color: #999; font-size: 11px; margin-top: 10px;">
+          * Mostrando as últimas 50 transações de um total de ${transactions.length}
         </p>
       ` : '<p style="color: #999; font-style: italic;">Nenhuma transação registrada</p>'}
 
-      <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #eee; text-align: center; color: #999; font-size: 12px;">
-        <p>Relatório gerado automaticamente pelo Sistema Financeiro Corp</p>
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 3px solid #8257e5; text-align: center; color: #666; font-size: 11px;">
+        <p style="font-weight: bold; margin-bottom: 5px;">📱 Sistema de Controle Financeiro</p>
+        <p style="color: #999; margin: 0;">Relatório gerado automaticamente | Master info</p>
       </div>
     </div>
   `;
@@ -800,10 +1028,10 @@ function generatePDF() {
   element.innerHTML = htmlContent;
   
   const opt = {
-    margin: 10,
-    filename: `relatorio-financeiro-${today.replace(/\//g, '-')}.pdf`,
+    margin: 8,
+    filename: `relatorio-financeiro-${todayFormatted.replace(/\//g, '-')}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
+    html2canvas: { scale: 2, useCORS: true },
     jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
   };
 
