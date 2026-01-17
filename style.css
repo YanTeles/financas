@@ -433,3 +433,24 @@ td.transaction-amount {
 .action-btn:hover {
     opacity: 1;
 }
+
+/* CHART SECTION */
+.chart-section {
+    background-color: var(--card-bg);
+    padding: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-top: 40px;
+}
+
+.chart-section h3 {
+    border-bottom: 2px solid var(--primary);
+    color: var(--primary);
+    margin-bottom: 20px;
+}
+
+.chart-container {
+    position: relative;
+    height: 400px;
+    width: 100%;
+}

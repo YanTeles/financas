@@ -64,6 +64,7 @@ const earnedCount = document.getElementById('earned-count');
 const generatePdfBtn = document.getElementById('generate-pdf-btn');
 
 let myChart = null;
+let balanceChart = null;
 
 // ============================================================
 // 2. ESTADO DA APLICAÇÃO
@@ -351,6 +352,97 @@ function updateChart() {
   });
 }
 
+function updateBalanceChart() {
+  const ctx = document.getElementById('balanceChart');
+  if (!ctx) return;
+
+  // Obter transações do mês atual
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
+  const monthTransactions = transactions.filter(t => t.date.startsWith(currentMonth));
+
+  if (monthTransactions.length === 0) {
+    if (balanceChart) balanceChart.destroy();
+    return;
+  }
+
+  // Ordenar por data
+  monthTransactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // Calcular saldo acumulado por dia
+  const balanceByDate = {};
+  let cumulativeBalance = 0;
+
+  monthTransactions.forEach(t => {
+    cumulativeBalance += t.amount;
+    balanceByDate[t.date] = cumulativeBalance;
+  });
+
+  const dates = Object.keys(balanceByDate);
+  const balances = Object.values(balanceByDate);
+
+  if (balanceChart) balanceChart.destroy();
+
+  balanceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates.map(d => formatDate(d)),
+      datasets: [{
+        label: 'Saldo ao Longo do Mês',
+        data: balances,
+        borderColor: '#8257e5',
+        backgroundColor: 'rgba(130, 87, 229, 0.1)',
+        borderWidth: 3,
+        tension: 0.4,
+        fill: true,
+        pointRadius: 6,
+        pointBackgroundColor: '#8257e5',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: '#9466ff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#e1e1e6',
+            font: {
+              size: 14,
+              weight: 'bold'
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: '#323238'
+          },
+          ticks: {
+            color: '#a8a8b3'
+          }
+        },
+        y: {
+          grid: {
+            color: '#323238'
+          },
+          ticks: {
+            color: '#a8a8b3',
+            callback: function(value) {
+              return formatCurrency(value);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 // ============================================================
 // 6b. UI PARA CONTAS PENDENTES
 // ============================================================
@@ -427,6 +519,7 @@ function init() {
   updateValues();
   updateAlerts();
   updateChart();
+  updateBalanceChart();
 }
 
 // ============================================================
