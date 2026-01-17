@@ -133,10 +133,34 @@ async function loadTransactions() {
   init();
 }
 
-// ❌ REMOVER
+// ❌ REMOVER COM CONFIRMAÇÃO
 window.removeTransaction = async function(id) {
+  const confirmed = confirm('Tem certeza que deseja excluir esta transação?');
+  if (confirmed) {
+    await deleteDoc(doc(db, "transactions", id));
+    loadTransactions();
+  }
+};
+
+// ✏️ EDITAR TRANSAÇÃO
+window.editTransaction = async function(id) {
+  const transaction = transactions.find(t => t.id === id);
+  if (!transaction) return;
+
+  // Preencher o formulário com os dados da transação
+  text.value = transaction.text;
+  amount.value = Math.abs(transaction.amount);
+  date.value = transaction.date;
+  type.value = transaction.type;
+  category.value = transaction.category;
+
+  // Remover a transação antiga
   await deleteDoc(doc(db, "transactions", id));
   loadTransactions();
+
+  // Focar no formulário
+  text.focus();
+  form.scrollIntoView({ behavior: 'smooth' });
 };
 
 // ➕ ADICIONAR CONTA PENDENTE
@@ -323,7 +347,8 @@ function addTransactionDOM(t) {
       ${t.amount < 0 ? '-' : '+'} ${formatCurrency(Math.abs(t.amount))}
     </td>
     <td>
-      <button class="delete-btn" onclick="removeTransaction('${t.id}')">x</button>
+      <button class="edit-btn" onclick="editTransaction('${t.id}')" title="Editar">✏️</button>
+      <button class="delete-btn" onclick="removeTransaction('${t.id}')" title="Excluir">🗑️</button>
     </td>
   `;
 

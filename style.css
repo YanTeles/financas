@@ -418,6 +418,22 @@ td.transaction-amount {
     opacity: 1;
 }
 
+.edit-btn {
+    background-color: transparent;
+    border: 0;
+    color: var(--primary);
+    font-size: 1.2rem;
+    line-height: 0;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    margin-right: 10px;
+}
+
+.edit-btn:hover {
+    opacity: 1;
+}
+
 .action-btn {
     background-color: transparent;
     border: 0;
