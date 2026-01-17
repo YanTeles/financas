@@ -440,7 +440,6 @@ td.transaction-amount {
     padding: 30px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    margin-top: 40px;
 }
 
 .chart-section h3 {
@@ -453,4 +452,46 @@ td.transaction-amount {
     position: relative;
     height: 400px;
     width: 100%;
+}
+
+/* CHARTS CAROUSEL */
+.charts-carousel-container {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 15px;
+    margin: 40px -10px 0 -10px;
+    padding: 0 10px 15px 10px;
+}
+
+.charts-carousel-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.charts-carousel-container::-webkit-scrollbar-track {
+    background: var(--bg-color);
+    border-radius: 10px;
+}
+
+.charts-carousel-container::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 10px;
+}
+
+.charts-carousel-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-hover);
+}
+
+.charts-carousel-container .carousel-section {
+    flex: 0 0 calc(100% - 20px);
+    min-width: 500px;
+}
+
+@media (max-width: 900px) {
+    .charts-carousel-container .carousel-section {
+        min-width: calc(100vw - 60px);
+        flex: 0 0 calc(100vw - 60px);
+    }
 }

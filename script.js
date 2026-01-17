@@ -65,6 +65,7 @@ const generatePdfBtn = document.getElementById('generate-pdf-btn');
 
 let myChart = null;
 let balanceChart = null;
+let incomeChart = null;
 
 // ============================================================
 // 2. ESTADO DA APLICAÇÃO
@@ -443,6 +444,109 @@ function updateBalanceChart() {
   });
 }
 
+function updateIncomeChart() {
+  const ctx = document.getElementById('incomeChart');
+  if (!ctx) return;
+
+  // Obter transações do mês atual
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
+  const monthTransactions = transactions.filter(t => t.date.startsWith(currentMonth));
+
+  if (monthTransactions.length === 0) {
+    if (incomeChart) incomeChart.destroy();
+    return;
+  }
+
+  // Calcular total de entradas e saídas por dia
+  const incomeByDate = {};
+  const expenseByDate = {};
+
+  monthTransactions.forEach(t => {
+    if (t.type === 'income') {
+      if (!incomeByDate[t.date]) {
+        incomeByDate[t.date] = 0;
+      }
+      incomeByDate[t.date] += t.amount;
+    } else if (t.type === 'expense') {
+      if (!expenseByDate[t.date]) {
+        expenseByDate[t.date] = 0;
+      }
+      expenseByDate[t.date] += Math.abs(t.amount);
+    }
+  });
+
+  const allDates = [...new Set([...Object.keys(incomeByDate), ...Object.keys(expenseByDate)])].sort();
+  const incomes = allDates.map(d => incomeByDate[d] || 0);
+  const expenses = allDates.map(d => expenseByDate[d] || 0);
+
+  if (incomeChart) incomeChart.destroy();
+
+  incomeChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: allDates.map(d => formatDate(d)),
+      datasets: [
+        {
+          label: 'Entradas',
+          data: incomes,
+          backgroundColor: '#00b37e',
+          borderColor: '#00d78f',
+          borderWidth: 2,
+          borderRadius: 5,
+          hoverBackgroundColor: '#00d78f'
+        },
+        {
+          label: 'Saídas',
+          data: expenses,
+          backgroundColor: '#f75a68',
+          borderColor: '#ff6b7d',
+          borderWidth: 2,
+          borderRadius: 5,
+          hoverBackgroundColor: '#ff6b7d'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#e1e1e6',
+            font: {
+              size: 14,
+              weight: 'bold'
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: '#323238'
+          },
+          ticks: {
+            color: '#a8a8b3'
+          }
+        },
+        y: {
+          grid: {
+            color: '#323238'
+          },
+          ticks: {
+            color: '#a8a8b3',
+            callback: function(value) {
+              return formatCurrency(value);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 // ============================================================
 // 6b. UI PARA CONTAS PENDENTES
 // ============================================================
@@ -520,6 +624,7 @@ function init() {
   updateAlerts();
   updateChart();
   updateBalanceChart();
+  updateIncomeChart();
 }
 
 // ============================================================
