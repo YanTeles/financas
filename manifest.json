@@ -1,22 +1,25 @@
 {
   "name": "Master info - Controle Financeiro",
   "short_name": "Master info",
-  "start_url": ".",
-  "scope": "./",
+  "description": "Sistema de controle financeiro empresarial",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#121214",
   "theme_color": "#8257e5",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

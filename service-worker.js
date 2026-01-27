@@ -1,11 +1,13 @@
 const CACHE_NAME = 'financas-pwa-v1';
 
 const URLS_TO_CACHE = [
-  './',
-  './index.html',
-  './style.css',
-  './script.js',
-  './manifest.json'
+  '/',
+  '/index.html',
+  '/style.css',
+  '/script.js',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
@@ -57,7 +59,7 @@ self.addEventListener('fetch', event => {
 
           return networkResponse;
         })
-        .catch(() => caches.match('./index.html'));
+        .catch(() => caches.match('/index.html'));
     })
   );
 });
