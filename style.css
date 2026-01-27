@@ -172,6 +172,7 @@ header h1 {
     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 30px;
     margin-bottom: 40px;
+    align-items: stretch;
 }
 
 @media (max-width: 900px) {
@@ -256,8 +257,10 @@ header h1 {
     background-color: var(--card-bg);
     padding: 20px;
     border-radius: 8px;
-    height: fit-content;
+    height: 100%;
     border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
 }
 
 .form-section h3:first-child {
@@ -280,6 +283,12 @@ h3 {
 
 .form-control {
     margin-bottom: 15px;
+}
+
+.form-section form {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .form-group-row {
@@ -318,11 +327,13 @@ input:focus, select:focus {
     display: block;
     font-size: 16px;
     font-weight: bold;
-    margin: 10px 0 30px;
+    margin: 10px 0 0;
     padding: 15px;
     width: 100%;
     border-radius: 5px;
     transition: background 0.2s;
+    margin-top: auto;
+    margin-bottom: 0;
 }
 
 .btn:hover {
