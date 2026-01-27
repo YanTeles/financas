@@ -57,6 +57,16 @@ const earnedDate = document.getElementById('earned-date');
 const earnedClient = document.getElementById('earned-client');
 const earnedList = document.getElementById('earned-list');
 
+// Empréstimos a funcionários
+const loanForm = document.getElementById('loan-form');
+const loanEmployee = document.getElementById('loan-employee');
+const loanAmount = document.getElementById('loan-amount');
+const loanDate = document.getElementById('loan-date');
+const loanDueDate = document.getElementById('loan-due-date');
+const loanPaymentMethod = document.getElementById('loan-payment-method');
+const loanNotes = document.getElementById('loan-notes');
+const loansList = document.getElementById('loans-list');
+
 // Elementos de alerta
 const pendingTotal = document.getElementById('pending-total');
 const pendingCount = document.getElementById('pending-count');
@@ -79,6 +89,7 @@ let incomeChart = null;
 let transactions = [];
 let pendingAccounts = [];
 let earnedServices = [];
+let employeeLoans = [];
 
 // Paginação
 let transactionsPerPage = 10;
@@ -87,6 +98,8 @@ let pendingPerPage = 10;
 let pendingPage = 0;
 let earnedPerPage = 10;
 let earnedPage = 0;
+let loansPerPage = 10;
+let loansPage = 0;
 
 // ============================================================
 // 3. FUNÇÕES UTILITÁRIAS
@@ -282,6 +295,99 @@ async function loadEarnedServices() {
 
   init();
 }
+
+// ➕ ADICIONAR EMPRÉSTIMO A FUNCIONÁRIO
+async function addEmployeeLoan(e) {
+  e.preventDefault();
+
+  if (!loanEmployee.value || !loanAmount.value || !loanDate.value) {
+    alert('Preencha funcionário, valor e data do empréstimo');
+    return;
+  }
+
+  const value = Math.abs(parseFloat(loanAmount.value));
+  const paymentMethod = loanPaymentMethod ? loanPaymentMethod.value : 'cash';
+
+  // Salvar empréstimo
+  await addDoc(collection(db, "employeeLoans"), {
+    employee: loanEmployee.value,
+    amount: value,
+    date: loanDate.value,
+    dueDate: loanDueDate.value || null,
+    paymentMethod,
+    notes: loanNotes.value || '',
+    status: 'open',
+    createdAt: new Date()
+  });
+
+  // Registrar saída correspondente nas transações
+  await addDoc(collection(db, "transactions"), {
+    text: `Empréstimo para ${loanEmployee.value}`,
+    amount: -value,
+    date: loanDate.value,
+    category: 'Empréstimo Funcionário',
+    type: 'expense',
+    paymentMethod,
+    createdAt: new Date()
+  });
+
+  loanForm.reset();
+  loadEmployeeLoans();
+  loadTransactions();
+}
+
+// 📥 CARREGAR EMPRÉSTIMOS
+async function loadEmployeeLoans() {
+  employeeLoans = [];
+  const snapshot = await getDocs(collection(db, "employeeLoans"));
+
+  snapshot.forEach(docSnap => {
+    employeeLoans.push({
+      id: docSnap.id,
+      ...docSnap.data()
+    });
+  });
+
+  init();
+}
+
+// ❌ REMOVER EMPRÉSTIMO
+window.removeEmployeeLoan = async function(id) {
+  const confirmed = confirm('Tem certeza que deseja excluir este empréstimo?');
+  if (!confirmed) return;
+
+  await deleteDoc(doc(db, "employeeLoans", id));
+  loadEmployeeLoans();
+};
+
+// ✅ MARCAR EMPRÉSTIMO COMO DEVOLVIDO
+window.markLoanAsReturned = async function(id) {
+  const loan = employeeLoans.find(l => l.id === id);
+  if (!loan) return;
+
+  const paymentMethod = loan.paymentMethod || 'cash';
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Registrar entrada correspondente nas transações
+  await addDoc(collection(db, "transactions"), {
+    text: `Devolução empréstimo - ${loan.employee}`,
+    amount: Math.abs(loan.amount),
+    date: today,
+    category: 'Empréstimo Funcionário',
+    type: 'income',
+    paymentMethod,
+    createdAt: new Date()
+  });
+
+  // Atualizar status do empréstimo
+  await updateDoc(doc(db, "employeeLoans", id), {
+    status: 'paid',
+    paidAt: today
+  });
+
+  loadEmployeeLoans();
+  loadTransactions();
+};
 
 // ❌ REMOVER SERVIÇO
 window.removeEarnedService = async function(id) {
@@ -702,6 +808,43 @@ function addEarnedServiceDOM(service) {
 }
 
 // ============================================================
+// 6d. UI PARA EMPRÉSTIMOS A FUNCIONÁRIOS
+// ============================================================
+function addEmployeeLoanDOM(loan) {
+  const tr = document.createElement('tr');
+
+  const statusLabel = loan.status === 'paid' ? 'Devolvido' : 'Em aberto';
+  const statusStyle =
+    loan.status === 'paid'
+      ? 'color: var(--green); font-weight: bold;'
+      : 'color: #ff9500; font-weight: bold;';
+
+  const paymentLabel =
+    loan.paymentMethod === 'cash' ? 'Caixa' : 'Conta / Pix';
+
+  tr.innerHTML = `
+    <td>${formatDate(loan.date)}</td>
+    <td>${loan.employee}</td>
+    <td style="color: var(--red); font-weight: bold;">
+      ${formatCurrency(loan.amount)}
+    </td>
+    <td>${loan.dueDate ? formatDate(loan.dueDate) : '-'}</td>
+    <td>${paymentLabel}</td>
+    <td style="${statusStyle}">${statusLabel}</td>
+    <td>
+      ${
+        loan.status === 'open'
+          ? `<button class="action-btn" onclick="markLoanAsReturned('${loan.id}')" title="Marcar como devolvido">✓</button>`
+          : ''
+      }
+      <button class="delete-btn" onclick="removeEmployeeLoan('${loan.id}')" title="Excluir empréstimo">🗑️</button>
+    </td>
+  `;
+
+  loansList.appendChild(tr);
+}
+
+// ============================================================
 // 7. RENDERIZAÇÃO COM PAGINAÇÃO
 // ============================================================
 function renderTransactions() {
@@ -788,6 +931,37 @@ function loadMoreEarned() {
   renderEarnedServices();
 }
 
+function renderEmployeeLoans() {
+  if (!loansList) return;
+
+  const sortedLoans = employeeLoans
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  loansList.innerHTML = '';
+
+  const start = loansPage * loansPerPage;
+  const end = start + loansPerPage;
+  const paginatedLoans = sortedLoans.slice(0, end);
+
+  paginatedLoans.forEach(addEmployeeLoanDOM);
+
+  if (sortedLoans.length > end) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="7" style="text-align: center; padding: 20px;">
+        <button class="load-more-btn" onclick="loadMoreLoans()">Carregar Mais</button>
+      </td>
+    `;
+    loansList.appendChild(tr);
+  }
+}
+
+function loadMoreLoans() {
+  loansPage++;
+  renderEmployeeLoans();
+}
+
 // ============================================================
 // 7b. INIT
 // ============================================================
@@ -796,10 +970,12 @@ function init() {
   transactionsPage = 0;
   pendingPage = 0;
   earnedPage = 0;
+  loansPage = 0;
 
   renderTransactions();
   renderPendingAccounts();
   renderEarnedServices();
+  renderEmployeeLoans();
 
   updateValues();
   updateAlerts();
@@ -814,17 +990,14 @@ function init() {
 form.addEventListener('submit', addTransaction);
 pendingForm.addEventListener('submit', addPendingAccount);
 earnedForm.addEventListener('submit', addEarnedService);
+if (loanForm) {
+  loanForm.addEventListener('submit', addEmployeeLoan);
+}
 filterMonth.addEventListener('change', init);
 clearFilterBtn.addEventListener('click', () => {
   filterMonth.value = '';
   init();
 });
-
-// Atualização dos campos de Caixa e Conta
-if (cashAmountInput && accountAmountInput) {
-  cashAmountInput.addEventListener('input', updateCashAccountValues);
-  accountAmountInput.addEventListener('input', updateCashAccountValues);
-}
 
 // ============================================================
 // 9. GERAR RELATÓRIO EM PDF
@@ -1110,3 +1283,4 @@ if (carouselContainer) {
 loadTransactions();
 loadPendingAccounts();
 loadEarnedServices();
+loadEmployeeLoans();
