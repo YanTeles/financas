@@ -19,6 +19,7 @@
     </header>
 
     <div class="container">
+        <!-- Cards principais: Entradas, Saídas e Saldo (mantidos) -->
         <section class="balance-container">
             <div class="card">
                 <h3>Entradas</h3>
@@ -31,6 +32,22 @@
             <div class="card total-card">
                 <h3>Saldo Atual</h3>
                 <p id="balance" class="money">R$ 0,00</p>
+            </div>
+        </section>
+
+        <!-- Novo bloco para separar dinheiro em caixa e em conta (automático) -->
+        <section class="balance-container">
+            <div class="card">
+                <h3>Valor em Caixa</h3>
+                <p id="cash-balance" class="money">R$ 0,00</p>
+            </div>
+            <div class="card">
+                <h3>Valor na Conta</h3>
+                <p id="account-balance" class="money">R$ 0,00</p>
+            </div>
+            <div class="card total-card">
+                <h3>Total dos Dois</h3>
+                <p id="cash-account-total" class="money">R$ 0,00</p>
             </div>
         </section>
 
@@ -77,6 +94,16 @@
                                 <option value="expense">Saída (-)</option>
                             </select>
                         </div>
+                        <div class="form-control">
+                            <label for="payment-method">Forma de Pagamento</label>
+                            <select id="payment-method" required>
+                                <option value="cash">Dinheiro (Caixa)</option>
+                                <option value="account">Conta Bancária / Pix / Cartão</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group-row">
                         <div class="form-control">
                             <label for="category">Categoria</label>
                             <select id="category" required>

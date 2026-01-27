@@ -37,6 +37,7 @@ const amount = document.getElementById('amount');
 const date = document.getElementById('date');
 const type = document.getElementById('type');
 const category = document.getElementById('category');
+const paymentMethodSelect = document.getElementById('payment-method');
 const filterMonth = document.getElementById('filter-month');
 const clearFilterBtn = document.getElementById('clear-filter');
 
@@ -62,6 +63,11 @@ const pendingCount = document.getElementById('pending-count');
 const earnedTotal = document.getElementById('earned-total');
 const earnedCount = document.getElementById('earned-count');
 const generatePdfBtn = document.getElementById('generate-pdf-btn');
+
+// Saldos automáticos de Caixa e Conta
+const cashBalanceEl = document.getElementById('cash-balance');
+const accountBalanceEl = document.getElementById('account-balance');
+const cashAccountTotalEl = document.getElementById('cash-account-total');
 
 let myChart = null;
 let balanceChart = null;
@@ -119,6 +125,7 @@ async function addTransaction(e) {
     date: date.value,
     category: category.value,
     type: type.value,
+    paymentMethod: paymentMethodSelect ? paymentMethodSelect.value : 'account',
     createdAt: new Date()
   });
 
@@ -325,6 +332,28 @@ function updateValues() {
   balance.innerText = formatCurrency(total);
   moneyPlus.innerText = formatCurrency(income);
   moneyMinus.innerText = formatCurrency(expense);
+
+  // Cálculo automático de Caixa e Conta com base na forma de pagamento
+  if (cashBalanceEl && accountBalanceEl && cashAccountTotalEl) {
+    let cashBalance = 0;
+    let accountBalance = 0;
+
+    getFilteredTransactions().forEach(t => {
+      const method = t.paymentMethod || 'account'; // padrão para transações antigas
+
+      if (method === 'cash') {
+        cashBalance += t.amount;
+      } else {
+        accountBalance += t.amount;
+      }
+    });
+
+    const totalCashAccount = cashBalance + accountBalance;
+
+    cashBalanceEl.innerText = formatCurrency(cashBalance);
+    accountBalanceEl.innerText = formatCurrency(accountBalance);
+    cashAccountTotalEl.innerText = formatCurrency(totalCashAccount);
+  }
 }
 
 function updateAlerts() {
@@ -790,6 +819,12 @@ clearFilterBtn.addEventListener('click', () => {
   filterMonth.value = '';
   init();
 });
+
+// Atualização dos campos de Caixa e Conta
+if (cashAmountInput && accountAmountInput) {
+  cashAmountInput.addEventListener('input', updateCashAccountValues);
+  accountAmountInput.addEventListener('input', updateCashAccountValues);
+}
 
 // ============================================================
 // 9. GERAR RELATÓRIO EM PDF
